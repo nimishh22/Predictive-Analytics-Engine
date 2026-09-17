@@ -21,14 +21,33 @@ Current target classes:
 - Average goals conceded in recent matches
 - Neutral-venue indicator
 - Tournament context using one-hot encoding
+- **Pre-match Elo ratings** calculated chronologically from previous results
 
 ## Model
 
-The current baseline uses a `RandomForestClassifier` from scikit-learn with 100 decision trees.
+The current model uses a `RandomForestClassifier` from scikit-learn with 100 decision trees.
 
-**Baseline accuracy:** 50.67%
+### Accuracy Progress
 
-This is an initial benchmark, not the final model. Future versions will introduce additional statistical and team-strength features, probability-based predictions, and improved evaluation methodology.
+| Version | Change | Accuracy |
+|---|---|---:|
+| V1 | Baseline feature set | **50.67%** |
+| V2.1 | Historical feature handling fixes | **52.34%** |
+| V2.2 | Added chronological pre-match Elo ratings | **54.64%** |
+
+The **54.64% result is an intermediate benchmark from a random train/test split**, not the final evaluation of the system. A time-based evaluation is planned to test performance more realistically on future matches.
+
+## Elo Rating System
+
+The V2.2 pipeline maintains a separate Elo rating for each team while processing matches chronologically.
+
+- Teams start at **1500 Elo**.
+- The Elo value recorded for each match is the team's **pre-match** rating.
+- Expected results are calculated using the standard Elo expected-score formula.
+- Ratings are updated after each match using **K = 20**.
+- Draws are represented using an actual score of **0.5** for both teams.
+
+This prevents the match being predicted from influencing its own Elo feature.
 
 ## Tech Stack
 
@@ -38,17 +57,16 @@ This is an initial benchmark, not the final model. Future versions will introduc
 
 ## Roadmap
 
-- [ ] Improve early-match feature handling
-- [ ] Add win/draw/loss probability predictions
-- [ ] Add Elo/team-strength features
-- [ ] Add head-to-head features
-- [ ] Add goal-difference and streak features
 - [ ] Improve model evaluation with time-aware testing
+- [ ] Improve recent-form features with weighting, streaks, and goal difference
+- [ ] Add head-to-head features
+- [ ] Add win/draw/loss probability predictions
+- [ ] Compare multiple model architectures
 - [ ] Build a user-facing prediction interface
 - [ ] Deploy the application
 
 ## Project Status
 
-**Version 1 — Baseline predictive model**
+**Version 2 — Feature engineering and model development**
 
-The system is actively being developed. The long-term goal is to build a robust, interpretable prediction engine with a polished user-facing interface.
+The system is actively being developed. The current focus is improving the quality of pre-match features and establishing a robust time-based evaluation methodology before moving toward probability outputs and a user-facing interface.
