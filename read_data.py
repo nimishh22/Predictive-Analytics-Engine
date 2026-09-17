@@ -49,9 +49,14 @@ def get_recent_form(team, match_date):
         )
         & (df_filtered["date"] < match_date)
     ]
-    #print(len(team_matches))
+   
     recent_matches = team_matches.tail(10)
+    n = len(recent_matches)
+    
+    if n == 0:
+         return 0.5
     points = 0
+
 
     for _, row in recent_matches.iterrows():
         if row["home_team"] ==  team:
@@ -65,7 +70,7 @@ def get_recent_form(team, match_date):
             points += 3
         elif team_score == opponent_score:
             points += 1
-    return points / 30 
+    return points / (n*3)
 
 home_forms = []
 away_forms = []
@@ -99,6 +104,10 @@ def average_goals_scored(team, match_date):
         & (df_filtered["date"] < match_date)
     ]
     recent_matches = team_matches.tail(10)
+    n = len(recent_matches)
+    if n == 0:
+            return 0.0
+    
     total_goals = 0
 
     for _, row in recent_matches.iterrows():
@@ -109,7 +118,7 @@ def average_goals_scored(team, match_date):
 
         total_goals += team_goals
 
-    return total_goals / 10 
+    return total_goals / n
 
 #print(average_goals_scored("Argentina", "2026-4-7"))
 
@@ -125,6 +134,10 @@ def average_goals_conceded(team,match_date):
         &(df_filtered["date"] < match_date)
     ]
     recent_matches = team_matches.tail(10)
+    n = len(recent_matches)
+    if n == 0:
+        return 0.0
+    
     total_goals = 0
 
     for _, row in recent_matches.iterrows():
@@ -134,7 +147,7 @@ def average_goals_conceded(team,match_date):
             goals_conceded = row["home_score"]
 
         total_goals += goals_conceded
-    return total_goals / 10 
+    return total_goals / n
 
 #print(average_goals_conceded("Brazil", "2022-11-20"))
 
@@ -176,6 +189,66 @@ for _, row in df_filtered.iterrows():
         )
     )
 
+elo_ratings = {}
+home_elos = []
+away_elos = []
+
+def expected_score(team_rating, opponent_rating):
+    return 1 / ( 1 + 10 ** ((opponent_rating - team_rating) / 400))
+
+def update_rating(rating, expected, actual):
+    k = 20
+    return rating + k * (actual - expected)
+
+
+for _, row in df_filtered.iterrows():
+    home_team = row["home_team"]
+    away_team = row["away_team"]
+
+    if home_team not in elo_ratings:
+            elo_ratings[home_team] = 1500
+
+    if away_team not in elo_ratings:
+            elo_ratings[away_team] = 1500
+
+    home_elo = elo_ratings[home_team]
+    away_elo = elo_ratings[away_team]
+    home_elos.append(home_elo)
+    away_elos.append(away_elo)
+
+    home_expected = expected_score(home_elo, away_elo)
+    away_expected = expected_score(away_elo, home_elo)
+
+    result = row["result"]
+    if result == 1:
+            home_actual = 1
+            away_actual = 0
+    elif result == 0:
+            home_actual = 0.5
+            away_actual = 0.5
+    else:
+            home_actual = 0
+            away_actual = 1
+
+    new_home_elo = update_rating(
+     home_elo,
+     home_expected,
+     home_actual,
+)
+
+    new_away_elo = update_rating(
+     away_elo,
+     away_expected,
+     away_actual,
+)
+
+    elo_ratings[home_team] = new_home_elo
+    elo_ratings[away_team] = new_away_elo
+
+
+df_filtered["home_elo"] = home_elos
+df_filtered["away_elo"] = away_elos
+
 df_filtered["home_avg_goals_scored"] = home_goals_scored
 df_filtered["away_avg_goals_scored"] = away_goals_scored
 
@@ -185,6 +258,7 @@ df_filtered["away_avg_goals_conceded"] = away_goals_conceded
 tournament_dummies = pd.get_dummies(df_filtered["tournament"], dtype=int)
 df_filtered = pd.concat([df_filtered, tournament_dummies], axis=1)
 df_filtered = df_filtered.drop(columns=["tournament"])
+
 
 features = [
     "home_form",
@@ -202,9 +276,11 @@ features = [
     "FIFA World Cup qualification",
     "Friendly",
     "UEFA Euro",
-    "UEFA Euro qualification"
+    "UEFA Euro qualification",
+    "home_elo",
+    "away_elo"
 ]
-
+print(df_filtered.columns.to_list())
 X = df_filtered[features]
 
 y = df_filtered["result"]
@@ -225,4 +301,4 @@ model = RandomForestClassifier(
 model.fit(X_train, y_train)
 predictions = model.predict(X_test)
 accuracy = accuracy_score(y_test, predictions)
-print(f"Accuracy: {accuracy:.2%}")
+print(f"Accuracy: {accuracy:.2%}") 
